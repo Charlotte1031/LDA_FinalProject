@@ -195,7 +195,7 @@ Demographics %>%
   apply(.,2,table) %>%
   knitr::kable()
 
-
+save(MergedData, file = "MergedData.RData")
 
 #### clean dataset with selected variables
 
@@ -206,18 +206,15 @@ father_gene <- ifelse(data$FatherMyop=="Yes",1,0)
 data$genetic <- mother_gene+father_gene
 
 data$Age <- floor(data$AgeAsofEnrollDt)
-data <- data %>% select (-FatherMyop, - MotherMyop)
-
-#### complete dataset
-data <- data[data$Visit != "Run-in FU Randomization", ]
-subjects_with_NaN <- unique(data$PtID[is.nan(data$SER)])
-complete_data <- data[!data$PtID %in% subjects_with_NaN, ]
 
 
-head(complete_data)
+# save as Rdata
 
 save(data,file="data.Rdata")
 
-#### chekcc
+
+
+
+
 
 
