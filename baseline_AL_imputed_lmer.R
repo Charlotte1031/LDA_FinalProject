@@ -12,11 +12,11 @@ clean_data <- data %>%
     Race = case_when(
       Race == "Black/African American" ~ "Black",
       Race == "White" ~ "White",
-      TRUE ~ "Other"  # All other categories combined
+      TRUE ~ "Other"
     ),
-    # Convert Race to factor with specific reference level
     Race = factor(Race, levels = c("Black", "White", "Other")),
-    # Then clean Visit
+    
+    # Clean Visit names
     Visit = case_when(
       Visit == "Enrollment" ~ "Month0",
       Visit == "Run-in FU Randomization" ~ "Randomization",
@@ -26,7 +26,39 @@ clean_data <- data %>%
       Visit == "Month 24 Visit" ~ "Month24",
       Visit == "Month 30 Visit" ~ "Month30"
     )
-  )
+  ) %>%
+  # Assign baseline AL group based on the AL value at Month0
+  group_by(PtID) %>%
+  mutate(
+    Baseline_AL = first(AL[Visit == "Month0"], default = NA),
+    AL_group = cut(
+      Baseline_AL,
+      breaks = c(-Inf, 25, Inf),  # Breakpoints for groups
+      labels = c("Group1", "Group2"),
+      include.lowest = TRUE
+    )
+  ) %>%
+  ungroup() %>%
+  # Create binary indicator variables for each subgroup
+  mutate(
+    AL_group1 = as.integer(AL_group == "Group1"),
+    AL_group2 = as.integer(AL_group == "Group2"),
+    AL_group3 = as.integer(AL_group == "Group3"),
+    AL_group4 = as.integer(AL_group == "Group4")
+  ) %>%
+  filter(Visit != "Randomization") %>% 
+  mutate(
+    Visit_numeric = case_when(
+      Visit == "Month0" ~ 0,
+      Visit == "Month6" ~ 6,
+      Visit == "Month12" ~ 12,
+      Visit == "Month18" ~ 18,
+      Visit == "Month24" ~ 24,
+      Visit == "Month30" ~ 30
+    )
+  ) %>%
+  mutate(AL_per_visit = AL / (Visit_numeric+1))
+
 
 # Convert to wide format for imputation
 wide_data <- clean_data %>%
@@ -36,8 +68,7 @@ wide_data <- clean_data %>%
     names_from = Visit,
     values_from = AL,
     names_prefix = "AL_"
-  ) %>% 
-  select(-AL_Randomization)
+  )
 
 # Check missingness
 missing_pattern <- wide_data %>% 
@@ -67,7 +98,7 @@ meth[grep("AL_", names(meth))] <- "pmm"  # Use predictive mean matching for AL
 # Perform multiple imputation
 imp <- mice(wide_data, 
             m = 100,           # Generate 20 imputed datasets
-            maxit = 50,       # Number of iterations
+            maxit = 20,       # Number of iterations
             method = meth,    
             predictorMatrix = pred_mat,
             seed = 123)
@@ -86,34 +117,26 @@ analyze_imputed_dataset <- function(imp_data, i) {
   
   # Convert to long format
   long_data <- to_long(imp_data)
-  
-  # Create AL groups and indicator variables
+
+
   long_data <- long_data %>%
     mutate(
       AL_group = cut(
         AL,
-        breaks = c(-Inf, 24.5, 26, 27.5, Inf),
-        labels = c("Group1", "Group2", "Group3", "Group4"),
+        breaks = c(-Inf, 25, Inf),
+        labels = c("Group1", "Group2"),
         include.lowest = TRUE
       ),
       AL_group1 = as.integer(AL_group == "Group1"),
-      AL_group2 = as.integer(AL_group == "Group2"),
-      AL_group3 = as.integer(AL_group == "Group3"),
-      AL_group4 = as.integer(AL_group == "Group4")
+      AL_group2 = as.integer(AL_group == "Group2")
     )
   
-  # Split into groups
-  group1_data <- long_data %>% 
-    filter(AL_group1 == 1) %>% 
-    select(-AL_group1, -AL_group2, -AL_group3, -AL_group4)
+  # Extract Group 1 and Group 2 datasets
+  group1_data <- long_data %>%
+    filter(AL_group == "Group1")
   
-  group2_data <- long_data %>% 
-    filter(AL_group2 == 1) %>% 
-    select(-AL_group1, -AL_group2, -AL_group3, -AL_group4)
-  
-  group3_data <- long_data %>% 
-    filter(AL_group3 == 1) %>% 
-    select(-AL_group1, -AL_group2, -AL_group3, -AL_group4)
+  group2_data <- long_data %>%
+    filter(AL_group == "Group2")
   
   # Fit models for each group
   models <- list()
@@ -138,17 +161,6 @@ analyze_imputed_dataset <- function(imp_data, i) {
                           na.action = na.omit)
   }, error = function(e) {
     print(paste("Error in Group 2, imputation", i, ":", e$message))
-    return(NULL)
-  })
-  
-  tryCatch({
-    models$group3 <- lmer(AL ~ Visit_numeric * as.factor(genetic) * TrtGroup + 
-                            Race+ EyeColor + AgeAsofEnrollDt +
-                            (Visit_numeric | PtID),
-                          data = group3_data,
-                          na.action = na.omit)
-  }, error = function(e) {
-    print(paste("Error in Group 3, imputation", i, ":", e$message))
     return(NULL)
   })
   
@@ -232,10 +244,9 @@ extract_group_results <- function(models_list, group_name) {
 # Get results for each group
 results_group1 <- extract_group_results(all_models, "group1")
 results_group2 <- extract_group_results(all_models, "group2")
-results_group3 <- extract_group_results(all_models, "group3")
 
 # Combine all results
-all_results <- rbind(results_group1, results_group2, results_group3)
+all_results <- rbind(results_group1, results_group2)
 
 # Print results
 print(all_results, digits = 3)
@@ -316,7 +327,7 @@ random_effects <- ranef(all_models[[1]]$group1)$PtID[, "(Intercept)"]
 shapiro.test(random_effects)
 
 # Residuals vs Fitted Plot for each group
-par(mfrow = c(3, 1)) 
+par(mfrow = c(2, 1)) 
 
 # Group 1 - 105
 if (!is.null(group1_model)) {
@@ -328,10 +339,6 @@ if (!is.null(group2_model)) {
   residuals_plot(group2_model, title = "Residuals vs Fitted: Group 2")
 }
 
-# Group 3 - 12
-if (!is.null(group3_model)) {
-  residuals_plot(group3_model, title = "Residuals vs Fitted: Group 3")
-}
 
 # QQ Plot for Residuals for each group
 # Group 1
@@ -342,11 +349,6 @@ if (!is.null(group1_model)) {
 # Group 2
 if (!is.null(group2_model)) {
   qq_plot_residuals(group2_model, title = "QQ Plot: Group 2 Residuals")
-}
-
-# Group 3
-if (!is.null(group3_model)) {
-  qq_plot_residuals(group3_model, title = "QQ Plot: Group 3 Residuals")
 }
 
 # QQ Plot for Random Effects for each group
@@ -360,10 +362,7 @@ if (!is.null(group2_model)) {
   qq_plot_random(group2_model, title = "QQ Plot: Group 2 Random Effects")
 }
 
-# Group 3
-if (!is.null(group3_model)) {
-  qq_plot_random(group3_model, title = "QQ Plot: Group 3 Random Effects")
-}
+
 dev.off()
 
 
