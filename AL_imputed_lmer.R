@@ -365,30 +365,3 @@ if (!is.null(group3_model)) {
   qq_plot_random(group3_model, title = "QQ Plot: Group 3 Random Effects")
 }
 dev.off()
-
-
-# Extract the first imputed dataset
-imp_data <- complete(imp, 1)
-
-# Convert to long format
-long_data <- to_long(imp_data)
-
-# Create the AL_group variable
-long_data <- long_data %>%
-  mutate(
-    AL_group = cut(
-      AL,
-      breaks = c(-Inf, 24.5, 26, 27.5, Inf),
-      labels = c("Group1", "Group2", "Group3", "Group4"),
-      include.lowest = TRUE
-    )
-  )
-
-# Extract Group 3 dataset
-group4_data <- long_data %>% filter(AL_group == "Group4")
-
-group3_data <- long_data %>% filter(AL_group == "Group3")
-group2_data <- long_data %>% filter(AL_group == "Group2")
-
-# Preview the Group 3 dataset
-head(group3_data)
