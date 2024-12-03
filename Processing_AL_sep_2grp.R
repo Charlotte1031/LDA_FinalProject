@@ -245,6 +245,7 @@ to_long <- function(data) {
     )
 }
 
+
 # Analyze imputed datasets
 analyze_imputed_dataset <- function(imp_data, i) {
   print(paste("Analyzing imputation", i))
@@ -273,15 +274,18 @@ analyze_imputed_dataset <- function(imp_data, i) {
   group2_data <- long_data %>% 
     filter(AL_group2 == 1) %>% 
     select(-AL_group1, -AL_group2)
-
   
+  group1_data$TrtGroup <- relevel(as.factor(group1_data$TrtGroup), ref = "Placebo")
+  group2_data$TrtGroup <- relevel(as.factor(group2_data$TrtGroup), ref = "Placebo")
+
+
   # Fit models for each group
   models <- list()
   
   # Try-catch blocks to handle potential convergence issues
   tryCatch({
     models$group1 <- lmer(AL ~ Visit_numeric * as.factor(genetic) * TrtGroup + 
-                            Sex + Race + EyeColor + AgeAsofEnrollDt +
+                            Race + EyeColor + AgeAsofEnrollDt +
                             (Visit_numeric | PtID),
                           data = group1_data,
                           na.action = na.omit)
@@ -292,7 +296,7 @@ analyze_imputed_dataset <- function(imp_data, i) {
   
   tryCatch({
     models$group2 <- lmer(AL ~ Visit_numeric * as.factor(genetic) * TrtGroup + 
-                            Sex + Race + EyeColor + AgeAsofEnrollDt +
+                            Race + EyeColor + AgeAsofEnrollDt +
                             (Visit_numeric | PtID),
                           data = group2_data,
                           na.action = na.omit)
@@ -319,6 +323,8 @@ for(i in 1:100) {
   imp_data <- complete(imp, i)
   all_models[[i]] <- analyze_imputed_dataset(imp_data, i)
 }
+
+save(all_models, file = "all_models.RData")
 
 # Function to extract coefficients and SE for each group
 extract_group_results <- function(models_list, group_name) {
