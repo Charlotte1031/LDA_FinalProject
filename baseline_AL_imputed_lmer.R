@@ -20,7 +20,7 @@ clean_data <- data %>%
     Visit = case_when(
       Visit == "Enrollment" ~ "Month0",
       Visit == "Run-in FU Randomization" ~ "Randomization",
-      Visit == "Month 6 Visit" ~ "Month6",
+      Visit == "Month 6 Visit" ~ "Month06",
       Visit == "Month 12 Visit" ~ "Month12", 
       Visit == "Month 18 Visit" ~ "Month18",
       Visit == "Month 24 Visit" ~ "Month24",
@@ -50,7 +50,7 @@ clean_data <- data %>%
   mutate(
     Visit_numeric = case_when(
       Visit == "Month0" ~ 0,
-      Visit == "Month6" ~ 6,
+      Visit == "Month06" ~ 6,
       Visit == "Month12" ~ 12,
       Visit == "Month18" ~ 18,
       Visit == "Month24" ~ 24,
@@ -85,8 +85,8 @@ library(mice)
 pred_mat <- make.predictorMatrix(wide_data)
 
 # Modify prediction matrix for temporal ordering
-pred_mat["AL_Month0", c("AL_Month6","AL_Month12","AL_Month18","AL_Month24","AL_Month30")] <- 0
-pred_mat["AL_Month6", c("AL_Month12","AL_Month18","AL_Month24","AL_Month30")] <- 0
+pred_mat["AL_Month0", c("AL_Month06","AL_Month12","AL_Month18","AL_Month24","AL_Month30")] <- 0
+pred_mat["AL_Month06", c("AL_Month12","AL_Month18","AL_Month24","AL_Month30")] <- 0
 pred_mat["AL_Month12", c("AL_Month18","AL_Month24","AL_Month30")] <- 0
 pred_mat["AL_Month18", c("AL_Month24","AL_Month30")] <- 0
 pred_mat["AL_Month24", "AL_Month30"] <- 0
@@ -143,9 +143,9 @@ analyze_imputed_dataset <- function(imp_data, i) {
   
   # Try-catch blocks to handle potential convergence issues
   tryCatch({
-    models$group1 <- lmer(AL ~ Visit_numeric * as.factor(genetic) * TrtGroup + 
+    models$group1 <- lmer(AL ~ Visit * as.factor(genetic) * TrtGroup + 
                             Race + EyeColor + AgeAsofEnrollDt +
-                            (Visit_numeric | PtID),
+                            (1 | PtID),
                           data = group1_data,
                           na.action = na.omit)
   }, error = function(e) {
@@ -154,9 +154,9 @@ analyze_imputed_dataset <- function(imp_data, i) {
   })
   
   tryCatch({
-    models$group2 <- lmer(AL ~ Visit_numeric * as.factor(genetic) * TrtGroup + 
+    models$group2 <- lmer(AL ~ Visit * as.factor(genetic) * TrtGroup + 
                             Race + EyeColor + AgeAsofEnrollDt +
-                            (Visit_numeric | PtID),
+                            (1 | PtID),
                           data = group2_data,
                           na.action = na.omit)
   }, error = function(e) {
@@ -178,7 +178,7 @@ to_long <- function(data) {
     mutate(
       Visit_numeric = case_when(
         Visit == "Month0" ~ 0,
-        Visit == "Month6" ~ 6,
+        Visit == "Month06" ~ 6,
         Visit == "Month12" ~ 12,
         Visit == "Month18" ~ 18,
         Visit == "Month24" ~ 24,
@@ -202,6 +202,8 @@ for(i in 1:100) {
   imp_data <- complete(imp, i)
   all_models[[i]] <- analyze_imputed_dataset(imp_data, i)
 }
+
+save(all_models, file = "all_models.RData")
 
 # Function to extract coefficients and SE for each group
 extract_group_results <- function(models_list, group_name) {
@@ -365,29 +367,3 @@ if (!is.null(group2_model)) {
 
 dev.off()
 
-
-# Extract the first imputed dataset
-imp_data <- complete(imp, 1)
-
-# Convert to long format
-long_data <- to_long(imp_data)
-
-# Create the AL_group variable
-long_data <- long_data %>%
-  mutate(
-    AL_group = cut(
-      AL,
-      breaks = c(-Inf, 24.5, 26, 27.5, Inf),
-      labels = c("Group1", "Group2", "Group3", "Group4"),
-      include.lowest = TRUE
-    )
-  )
-
-# Extract Group 3 dataset
-group4_data <- long_data %>% filter(AL_group == "Group4")
-
-group3_data <- long_data %>% filter(AL_group == "Group3")
-group2_data <- long_data %>% filter(AL_group == "Group2")
-
-# Preview the Group 3 dataset
-head(group3_data)
