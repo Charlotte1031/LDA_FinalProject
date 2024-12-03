@@ -152,7 +152,7 @@ clean_data <- final_sep_eye_data %>%
   # Assign baseline AL group based on the AL value at Month0
   group_by(PtID) %>%
   mutate(
-    Baseline_AL = first(AL[Visit == "Month0"], default = NA),
+    Baseline_AL = first(AL_sp[Visit == "Month0"], default = NA),
     AL_group = cut(
       Baseline_AL,
       breaks = c(-Inf, 25, Inf),  # Breakpoints for groups
@@ -177,7 +177,7 @@ clean_data <- final_sep_eye_data %>%
       Visit == "Month30" ~ 30
     )
   ) %>%
-  mutate(AL_per_visit = AL / (Visit_numeric+1))
+  mutate(AL_per_visit = AL_sp / (Visit_numeric+1))
 
 
 # Convert to wide format for imputation
@@ -277,8 +277,7 @@ analyze_imputed_dataset <- function(imp_data, i) {
   
   group1_data$TrtGroup <- relevel(as.factor(group1_data$TrtGroup), ref = "Placebo")
   group2_data$TrtGroup <- relevel(as.factor(group2_data$TrtGroup), ref = "Placebo")
-
-
+  
   # Fit models for each group
   models <- list()
   
