@@ -155,6 +155,35 @@ analyze_imputed_dataset <- function(imp_data, i) {
   return(models)
 }
 
+to_long <- function(data) {
+  data %>%
+    pivot_longer(
+      cols = starts_with("AL_"),
+      names_to = "Visit",
+      values_to = "AL",
+      names_prefix = "AL_"
+    ) %>%
+    mutate(
+      Visit_numeric = case_when(
+        Visit == "Month0" ~ 0,
+        Visit == "Month6" ~ 6,
+        Visit == "Month12" ~ 12,
+        Visit == "Month18" ~ 18,
+        Visit == "Month24" ~ 24,
+        Visit == "Month30" ~ 30
+      )
+    )
+}
+
+get_coef_se <- function(model) {
+  coef <- fixef(model)
+  vcov <- as.matrix(vcov(model))
+  se <- sqrt(diag(vcov))
+  # Create numeric matrix instead of data frame
+  matrix(c(coef, se), ncol = 2, 
+         dimnames = list(names(coef), c("estimate", "std.error")))
+}
+
 # Analyze all imputed datasets
 all_models <- list()
 for(i in 1:100) {
