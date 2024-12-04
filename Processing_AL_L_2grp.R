@@ -325,7 +325,7 @@ for(i in 1:100) {
   all_models[[i]] <- analyze_imputed_dataset(imp_data, i)
 }
 
-save(all_models_L, file = "all_models_L.RData")
+save(all_models, file = "all_models_L.RData")
 
 # Function to extract coefficients and SE for each group
 extract_group_results <- function(models_list, group_name) {
@@ -395,3 +395,4 @@ ggplot(all_results %>%
        x = "AL Group",
        y = "Estimate with 95% CI",
        color = "Parameter")
+
