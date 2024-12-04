@@ -333,7 +333,7 @@ extract_group_results <- function(models_list, group_name) {
   group_models <- lapply(models_list, function(x) x[[group_name]])
   
   # Remove NULL models (if any failed to converge)
-  group_models <- group_models[!sapply(group_models, is.null)]
+  group_models <- group_models[!sapply(models_list, is.null)]
   
   # Extract coefficients and standard errors
   results_list <- lapply(group_models, get_coef_se)
@@ -342,7 +342,7 @@ extract_group_results <- function(models_list, group_name) {
   estimates <- do.call(rbind, lapply(results_list, function(x) x[,"estimate"]))
   std.errors <- do.call(rbind, lapply(results_list, function(x) x[,"std.error"]))
   
-  # Apply Rubin's rules
+  # Apply Rubin's rules for fixed effects
   n_imputations <- nrow(estimates)
   pooled_estimates <- colMeans(estimates)
   within_var <- colMeans(std.errors^2)
@@ -350,8 +350,31 @@ extract_group_results <- function(models_list, group_name) {
   total_var <- within_var + (1 + 1/n_imputations) * between_var
   pooled_se <- sqrt(total_var)
   
-  # Create results dataframe
-  results <- data.frame(
+  # Extract random effects variance
+  random_var_list <- lapply(group_models, function(model) {
+    # Extract random effects variance-covariance matrix
+    vc <- as.data.frame(VarCorr(model))
+    
+    # Create a data frame of random effects variances
+    random_vars <- data.frame(
+      group = vc$grp,
+      var_name = vc$var1,
+      variance = vc$vcov
+    )
+    
+    return(random_vars)
+  })
+  
+  # Pool random effects variances using simple averaging
+  pooled_random_vars <- do.call(rbind, random_var_list) %>%
+    group_by(group, var_name) %>%
+    summarize(
+      pooled_variance = mean(variance)
+      #variance_se = sd(variance) / sqrt(n_imputations)
+    )
+  
+  # Create results dataframe for fixed effects
+  fixed_results <- data.frame(
     term = colnames(estimates),
     estimate = pooled_estimates,
     std.error = pooled_se,
@@ -362,37 +385,22 @@ extract_group_results <- function(models_list, group_name) {
     group = group_name
   )
   
-  return(results)
+  # Return a list containing both fixed effects results and random effects variances
+  return(list(
+    fixed_effects = fixed_results,
+    random_effects = pooled_random_vars
+  ))
 }
 
 # Get results for each group
 results_group1 <- extract_group_results(all_models, "group1")
 results_group2 <- extract_group_results(all_models, "group2")
 
-# Combine all results
-all_results <- rbind(results_group1, results_group2)
+# Print fixed effects
+print(results_group1$fixed_effects, digits = 3)
+print(results_group2$fixed_effects, digits = 3)
 
-# Print results
-print(all_results, digits = 3)
-
-# Visualize key coefficients across groups
-library(ggplot2)
-
-ggplot(all_results %>%
-         filter(term %in% c("TrtGroup", "Visit_numeric", "genetic", 
-                            "Visit_numeric:genetic")) %>%
-         mutate(term = factor(term, 
-                              levels = c("TrtGroup", "Visit_numeric", 
-                                         "genetic", "Visit_numeric:genetic"))), 
-       aes(x = group, y = estimate, color = term)) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
-                position = position_dodge(width = 0.5),
-                width = 0.2) +
-  theme_minimal() +
-  coord_flip() +
-  labs(title = "Key Coefficient Estimates by AL Group",
-       x = "AL Group",
-       y = "Estimate with 95% CI",
-       color = "Parameter")
+# Print random effects variances
+print(results_group1$random_effects, digits = 3)
+print(results_group2$random_effects, digits = 3)
 
