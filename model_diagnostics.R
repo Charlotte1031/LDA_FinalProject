@@ -1,0 +1,101 @@
+library(performance)
+library(ggplot2)
+library(qqplotr)
+
+load("all_models_L.RData")
+
+####### model diagnostic
+# Residual Plot for a Single Model
+residuals_plot <- function(model, title = "Residuals vs Fitted") {
+  residuals <- residuals(model)
+  fitted <- fitted(model)
+  
+  plot(fitted, residuals, 
+       main = title, 
+       xlab = "Fitted Values", 
+       ylab = "Residuals", 
+       pch = 1, col = "#333333")
+  abline(h = 0, col = "#3366CC", lty = 2, lwd = 2)
+}
+
+# Example for group1 model in the first imputation
+residuals_plot(all_models[[1]]$group1, title = "Residuals vs Fitted: Group 1")
+
+
+# QQ Plot for Residuals
+qq_plot_residuals <- function(model, title = "QQ Plot for Residuals") {
+  qqnorm(residuals(model), main = title, pch = 1, col = "#333333")
+  qqline(residuals(model), col = "#3366CC", lty = 2, lwd = 2)
+}
+
+# Example for group1 model
+qq_plot_residuals(all_models[[1]]$group1, title = "QQ Plot: Group 1 Residuals")
+
+# QQ Plot for Random Effects
+qq_plot_random <- function(model, title = "QQ Plot for Random Effects") {
+  ranef_data <- ranef(model)$PtID[, "(Intercept)"]
+  qqnorm(ranef_data, main = title, pch = 1, col = "#333333")
+  qqline(ranef_data,col = "#3366CC", lty = 2, lwd = 2)
+}
+
+# Example for group1 model
+qq_plot_random(all_models[[1]]$group1, title = "QQ Plot: Group 1 Random Effects")
+
+# install.packages("performance")
+# 
+# # Check diagnostics for group1 model
+check_model(all_models[[1]]$group1,check = c("qq", "linearity","reqq","outliers"))
+check_model(all_models[[1]]$group2,check = c("qq", "linearity","reqq","outliers"))
+
+
+
+# library(car)
+# # VIF for group1 model
+# vif(all_models[[1]]$group3)
+
+# Extract random effects for the intercept
+random_effects <- ranef(all_models[[2]]$group1)$PtID[, "(Intercept)"]
+shapiro.test(random_effects)
+
+# Residuals vs Fitted Plot for each group
+par(mfrow = c(2, 1)) 
+
+# Group 1
+if (!is.null(group1_model)) {
+  residuals_plot(group1_model, title = "Residuals vs Fitted: Group 1")
+}
+
+# Group 2
+if (!is.null(group2_model)) {
+  residuals_plot(group2_model, title = "Residuals vs Fitted: Group 2")
+}
+
+
+
+# QQ Plot for Residuals for each group
+# Group 1
+if (!is.null(group1_model)) {
+  qq_plot_residuals(group1_model, title = "QQ Plot: Group 1 Residuals")
+}
+
+
+# Group 2
+if (!is.null(group2_model)) {
+  qq_plot_residuals(group2_model, title = "QQ Plot: Group 2 Residuals")
+}
+
+# QQ Plot for Random Effects for each group
+# Group 1
+if (!is.null(group1_model)) {
+  qq_plot_random(group1_model, title = "QQ Plot: Group 1 Random Effects")
+}
+
+
+
+# Group 2
+if (!is.null(group2_model)) {
+  qq_plot_random(group2_model, title = "QQ Plot: Group 2 Random Effects")
+}
+
+dev.off()
+
