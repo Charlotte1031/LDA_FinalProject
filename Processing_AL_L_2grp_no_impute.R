@@ -286,3 +286,12 @@ if(!is.null(results_group2)) {
   print(results_group2$random_effects, digits = 3)
 }
 
+
+#------------- model diagnostic -------------
+library(performance)
+plot1 <- check_model(models$group1, 
+                     check = c("linearity", "qq", "outliers", "reqq"))
+print(plot1)
+plot2 <- check_model(models$group2, 
+                     check = c("linearity", "qq", "outliers","reqq"))
+print(plot2)
