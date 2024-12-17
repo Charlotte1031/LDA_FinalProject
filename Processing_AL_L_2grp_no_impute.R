@@ -181,6 +181,64 @@ clean_data <- final_L_eye_data %>%
   ) %>%
   mutate(AL_per_visit = AL_sp / (Visit_numeric+1))
 
+library(dplyr)
+
+library(dplyr)
+
+# Summary statistics stratified by AL_group
+summary_stats <- clean_data %>%
+  group_by(PtID) %>% 
+  summarize(
+    Race = first(Race),
+    EyeColor = first(EyeColor),
+    AgeAsofEnrollDt = first(AgeAsofEnrollDt),
+    Sex = first(Sex),
+    genetic = first(genetic),
+    Baseline_AL = first(Baseline_AL),
+    AL_group = first(AL_group)
+  ) %>%
+  group_by(AL_group) %>%
+  summarize(
+    Race = paste(table(Race), collapse = ", "),
+    EyeColor = paste(table(EyeColor), collapse = ", "),
+    AgeAsofEnrollDt = sprintf("%.2f ± %.2f (%.2f, %.2f)",
+                              mean(AgeAsofEnrollDt, na.rm = TRUE),
+                              sd(AgeAsofEnrollDt, na.rm = TRUE),
+                              min(AgeAsofEnrollDt, na.rm = TRUE),
+                              max(AgeAsofEnrollDt, na.rm = TRUE)),
+    Sex = paste(table(Sex), collapse = ", "),
+    genetic = sprintf("%.2f ± %.2f (%.2f, %.2f)",
+                      mean(genetic, na.rm = TRUE),
+                      sd(genetic, na.rm = TRUE),
+                      min(genetic, na.rm = TRUE),
+                      max(genetic, na.rm = TRUE)),
+    Baseline_AL = sprintf("%.2f ± %.2f (%.2f, %.2f)",
+                          mean(Baseline_AL, na.rm = TRUE),
+                          sd(Baseline_AL, na.rm = TRUE),
+                          min(Baseline_AL, na.rm = TRUE),
+                          max(Baseline_AL, na.rm = TRUE))
+  )
+
+# View the results
+summary_stats
+
+# Transform summary_stats to Table 1 format
+table_1 <- summary_stats %>%
+  pivot_longer(
+    cols = -AL_group, 
+    names_to = "Variable", 
+    values_to = "Summary"
+  ) %>%
+  pivot_wider(
+    names_from = AL_group, 
+    values_from = Summary
+  )
+
+# View the result
+table_1
+
+
+
 # Analyze non-imputed dataset
 analyze_clean_data <- function(clean_data) {
   # Split into groups based on baseline AL
